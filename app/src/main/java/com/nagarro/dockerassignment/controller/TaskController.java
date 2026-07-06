@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 
+// serves the Thymeleaf UI; the JSON API lives in TaskApiController
 @Controller
 public class TaskController {
 
@@ -27,6 +28,8 @@ public class TaskController {
 
     @PostMapping("/tasks")
     public String create(@ModelAttribute("newTask") Task task) {
+        // rebuild instead of saving the bound object directly so completed/createdAt
+        // always start from defaults regardless of what the form posts
         taskRepository.save(new Task(task.getTitle(), task.getDescription()));
         return "redirect:/";
     }

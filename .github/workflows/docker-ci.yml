@@ -36,6 +36,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify Docker and Docker Compose installation
+        run: |
+          docker --version
+          docker compose version
+          docker run hello-world
+
       - name: Build image
         run: docker build -t ${{ env.IMAGE_NAME }}:ci ./app
 

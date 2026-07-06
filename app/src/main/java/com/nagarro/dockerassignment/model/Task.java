@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 
 import java.time.LocalDateTime;
 
+// maps directly to the "task" table MySQL creates via ddl-auto=update
 @Entity
 public class Task {
 
@@ -24,6 +25,7 @@ public class Task {
 
     private LocalDateTime createdAt;
 
+    // needed by JPA
     public Task() {
     }
 

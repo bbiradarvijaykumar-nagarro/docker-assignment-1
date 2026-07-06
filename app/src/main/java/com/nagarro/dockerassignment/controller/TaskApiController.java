@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+// plain JSON CRUD, handy for testing the container with curl instead of the browser
 @RestController
 @RequestMapping("/api/tasks")
 public class TaskApiController {

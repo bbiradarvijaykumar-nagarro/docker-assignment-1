@@ -1,4 +1,6 @@
 services:
+  # Spring Boot app - builds locally but the image tag points at Docker Hub so
+  # "docker compose pull" works once it's been pushed
   app:
     build:
       context: ./app
@@ -19,6 +21,7 @@ services:
       - taskapp-net
     restart: unless-stopped
 
+  # bonus requirement: persistent database the app talks to over the taskapp-net
   mysql:
     image: mysql:8.4
     container_name: docker-assignment-mysql
@@ -41,6 +44,7 @@ services:
       - taskapp-net
     restart: unless-stopped
 
+  # optional DB browser at :8081, just for poking at the data without a mysql client
   adminer:
     image: adminer:4
     container_name: docker-assignment-adminer
