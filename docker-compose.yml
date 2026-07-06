@@ -2,7 +2,7 @@ services:
   app:
     build:
       context: ./app
-    image: ${DOCKERHUB_USERNAME:-vijaykumarbiradar}/docker-assignment-app:latest
+    image: ${DOCKERHUB_USERNAME:-biradarvijay}/docker-assignment-app:latest
     container_name: docker-assignment-app
     ports:
       - "8080:8080"
