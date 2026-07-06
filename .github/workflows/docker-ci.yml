@@ -1,0 +1,194 @@
+name: Docker CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: docker-assignment-app
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Run unit tests
+        working-directory: ./app
+        run: mvn -B test
+
+      - name: Package application
+        working-directory: ./app
+        run: mvn -B -DskipTests package
+
+  single-container-lifecycle:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t ${{ env.IMAGE_NAME }}:ci ./app
+
+      - name: List images
+        run: docker images
+
+      - name: Create network
+        run: docker network create ci-net
+
+      - name: Run MySQL container
+        run: |
+          docker run -d --name ci-mysql --network ci-net \
+            -e MYSQL_ROOT_PASSWORD=rootpass \
+            -e MYSQL_DATABASE=taskdb \
+            -e MYSQL_USER=taskuser \
+            -e MYSQL_PASSWORD=taskpass \
+            mysql:8.4
+
+      - name: Wait for MySQL to be ready
+        run: |
+          for i in $(seq 1 30); do
+            docker exec ci-mysql mysqladmin ping -h localhost -uroot -prootpass --silent && break
+            echo "waiting for mysql..."
+            sleep 2
+          done
+
+      - name: Run app container
+        run: |
+          docker run -d --name ci-app --network ci-net -p 8080:8080 \
+            -e DB_HOST=ci-mysql -e DB_NAME=taskdb -e DB_USER=taskuser -e DB_PASSWORD=taskpass \
+            ${{ env.IMAGE_NAME }}:ci
+
+      - name: List running containers
+        run: docker ps
+
+      - name: Wait for app health
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"' && break
+            echo "waiting for app..."
+            sleep 2
+          done
+          curl -sf http://localhost:8080/actuator/health
+
+      - name: View app logs
+        run: docker logs ci-app
+
+      - name: Inspect app container
+        run: docker inspect ci-app
+
+      - name: Stop app container
+        run: docker stop ci-app
+
+      - name: List all containers (including stopped)
+        run: docker ps -a
+
+      - name: Start app container again
+        run: docker start ci-app
+
+      - name: Wait for app health after restart
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"' && break
+            sleep 2
+          done
+
+      - name: Remove containers and network
+        if: always()
+        run: |
+          docker stop ci-app ci-mysql || true
+          docker rm ci-app ci-mysql || true
+          docker network rm ci-net || true
+
+  compose-multi-container:
+    needs: single-container-lifecycle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env
+        run: cp .env.example .env
+
+      - name: Build images via Compose
+        run: docker compose build
+
+      - name: Bring up all services
+        run: docker compose up -d
+
+      - name: List Compose services
+        run: docker compose ps
+
+      - name: Wait for app health
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"' && break
+            echo "waiting for app..."
+            sleep 2
+          done
+          curl -sf http://localhost:8080/actuator/health
+
+      - name: Show app logs
+        run: docker compose logs app
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  push-and-pull:
+    needs: compose-multi-container
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and tag image
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
+                       -t ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+                       ./app
+
+      - name: Push image to Docker Hub
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Remove local image to force a real pull
+        run: docker rmi ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Pull image back from Docker Hub
+        run: docker pull ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Run pulled image with Compose
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          cp .env.example .env
+          echo "DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME}" >> .env
+          docker compose up -d --no-build
+
+      - name: Verify pulled app is healthy
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8080/actuator/health | grep -q '"status":"UP"' && break
+            sleep 2
+          done
+          curl -sf http://localhost:8080/actuator/health
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
