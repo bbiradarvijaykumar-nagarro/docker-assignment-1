@@ -13,6 +13,13 @@ image against Docker Hub.
 - Docker / Docker Compose
 - GitHub Actions
 
+## Docker command reference
+
+See [DOCKER_COMMANDS.md](DOCKER_COMMANDS.md) for how Docker/Compose were set
+up and a documented walkthrough of every command category used in this
+project (images, container lifecycle, logs/inspect, Compose, networks,
+volumes, registry push/pull), with explanations and real examples.
+
 ## Live local demo scripts
 
 `demo/` has three scripts that exercise the full task checklist end-to-end
