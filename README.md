@@ -13,6 +13,20 @@ image against Docker Hub.
 - Docker / Docker Compose
 - GitHub Actions
 
+## Live local demo scripts
+
+`demo/` has three scripts that exercise the full task checklist end-to-end
+against a real local Docker daemon (used here via WSL2):
+
+- `ci-local-demo.sh` - build the image, run it as a plain container next to
+  MySQL, and walk through `docker ps`, `logs`, `inspect`, `stop`, `ps -a`,
+  `start`, `rm`.
+- `ci-compose-demo.sh` - `docker compose build/up/ps`, create a task through
+  the running app, tail logs, `compose down`.
+- `ci-push-pull-demo.sh` - push the image to Docker Hub, delete it locally,
+  pull it back, and run the pulled image against a fresh MySQL to confirm
+  the registry round trip. Needs `DOCKERHUB_TOKEN` in the environment.
+
 ## Project layout
 
 ```
